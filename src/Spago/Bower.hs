@@ -40,14 +40,21 @@ generateBowerJson :: HasPublishEnv env => RIO env Text
 generateBowerJson = do
   logInfo "Generating a new Bower config using the package set versions.."
   Config{..} <- view (the @Config)
-  PublishConfig{..} <- throws publishConfig
+  (PackageName targetName, Target{..}) <- view (the @BuildTarget)
+  -- PublishConfig{..} <- throws publishConfig
+  (publishLicense, publishRepository) <- case (license, targetType) of
+    (Just publishLicense, LibraryTarget publishRepository) -> pure (publishLicense, publishRepository)
+    -- TODO: fixup these messages
+    (Nothing, _) -> die [ display ("Please add a valid license to your configuration file" :: Text) ]
+    (_, _) -> die [ display ("Please add a valid repository URL to your configuration file" :: Text) ]
 
-  bowerName <- mkPackageName name
+  bowerName <- mkPackageName targetName
   bowerDependencies <- mkDependencies
   template <- templateBowerJson
 
   let bowerLicense = [publishLicense]
-      bowerRepository = Just $ Bower.Repository publishRepository "git"
+      repo = repoToUrl publishRepository
+      bowerRepository = Just $ Bower.Repository repo "git"
       bowerPkg = template { bowerLicense, bowerRepository, bowerName, bowerDependencies }
       prettyConfig = Pretty.defConfig
         { Pretty.confCompare = Pretty.keyOrder ["name", "license", "repository", "ignore", "dependencies"] <> compare
@@ -95,15 +102,16 @@ mkPackageName spagoName = do
 -- | version, otherwise return a URL#version style bower version.
 mkBowerVersion
   :: (HasLogFunc env, HasBower env)
-  => Bower.PackageName -> Text -> Repo 
+  => Bower.PackageName -> Text -> Repo
   -> RIO env Bower.VersionRange
-mkBowerVersion packageName version (Repo repo) = do
+mkBowerVersion packageName version repo = do
+  let repoUrl = repoToUrl repo
   let args = ["info", "--json", Bower.runPackageName packageName <> "#" <> version]
   (code, out, _) <- runBower args
   -- Here `bower info` likely fails because the package is not in the Bower registry.
   -- So we just include the full repo for the package - see #682 for more info
-  if (code /= ExitSuccess) then
-    pure $ Bower.VersionRange $ repo <> "#" <> version
+  if code /= ExitSuccess then
+    pure $ Bower.VersionRange $ repoUrl <> "#" <> version
   else do
     info <- case Aeson.decode $ LazyEncoding.encodeUtf8 $ LazyText.fromStrict out of
       Just (Object obj) -> pure obj
@@ -111,13 +119,13 @@ mkBowerVersion packageName version (Repo repo) = do
 
     if HashMap.member "version" info
       then pure $ Bower.VersionRange $ "^" <> version
-      else pure $ Bower.VersionRange $ repo <> "#" <> version
+      else pure $ Bower.VersionRange $ repoUrl <> "#" <> version
 
 
 mkDependencies
   :: forall env. HasPublishEnv env => RIO env [(Bower.PackageName, Bower.VersionRange)]
 mkDependencies = do
-  deps <- Packages.getDirectDeps
+  deps <- Packages.getTargetTransitiveDeps
 
   Jobs jobs <- getJobs
 
@@ -132,7 +140,7 @@ mkDependencies = do
           die [ "Unable to create Bower version for local repo: " <> display localPath ]
         Remote{..} -> do
           bowerName <- mkPackageName packageName
-          bowerVersion <- mkBowerVersion bowerName version repo
+          bowerVersion <- mkBowerVersion bowerName ref repo
           pure (bowerName, bowerVersion)
 
     getJobs = case System.Info.os of

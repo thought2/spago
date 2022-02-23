@@ -11,6 +11,7 @@ import qualified Data.Map                 as Map
 import qualified Data.Text                as Text
 import qualified Data.Text.Lazy           as LT
 import qualified Data.Text.Lazy.Encoding  as LT
+import qualified Data.Set as Set
 
 import qualified Spago.Packages as Packages
 
@@ -40,19 +41,20 @@ listPackageSet jsonFlag = do
   traverse_ output $ formatPackageNames jsonFlag (Map.toList packagesDB)
 
 listPackages
-  :: (HasLogFunc env, HasConfig env)
+  :: (HasLogFunc env, HasPackageSet env, HasTarget env)
   => IncludeTransitive -> JsonFlag
   -> RIO env ()
 listPackages packagesFilter jsonFlag = do
   logDebug "Running `listPackages`"
+  (PackageName targetName, Target { targetDependencies }) <- view (the @BuildTarget)
   packagesToList :: [(PackageName, Package)] <- case packagesFilter of
-    IncludeTransitive -> Packages.getProjectDeps
+    IncludeTransitive -> Packages.getTargetTransitiveDeps
     _ -> do
-      Config { packageSet = PackageSet{ packagesDB }, dependencies } <- view (the @Config)
-      pure $ Map.toList $ Map.restrictKeys packagesDB dependencies
+      PackageSet{ packagesDB } <- view (the @PackageSet)
+      pure $ Map.toList $ Map.restrictKeys packagesDB (Set.fromList $ Map.keys targetDependencies)
 
   case packagesToList of
-    [] -> logWarn "There are no dependencies listed in your spago.dhall"
+    [] -> logWarn $ "There are no dependencies listed in your spago.dhall for the target '" <> display targetName <> "'"
     _  -> traverse_ output $ formatPackageNames jsonFlag packagesToList
 
 formatPackageNames :: JsonFlag -> [(PackageName, Package)] -> [Text]
@@ -68,7 +70,7 @@ formatPackageNames = \case
           = JsonPackageOutput
               { json_packageName = packageName
               , json_repo = toJSON loc
-              , json_version = version
+              , json_version = ref
               }
         asJson (PackageName{..}, Package { location = loc@(Local _) })
           = JsonPackageOutput
@@ -82,10 +84,10 @@ formatPackageNames = \case
     formatPackageNamesText :: [(PackageName, Package)] -> [Text]
     formatPackageNamesText pkgs =
       let
-        showVersion Remote{..} = version
+        showVersion Remote{..} = ref
         showVersion _                     = "local"
 
-        showLocation Remote{ repo = Repo repo } = "Remote " <> surroundQuote repo
+        showLocation Remote{ repo } = "Remote " <> surroundQuote (repoToUrl repo)
         showLocation Local{..}                  = "Local " <> surroundQuote localPath
 
         longestName = maximum $ fmap (Text.length . packageName . fst) pkgs

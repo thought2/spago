@@ -1,11 +1,10 @@
 module Spago.Packages
-  ( install
-  , sources
+  ( sources
   , getGlobs
   , getGlobsSourcePaths
   , getJsGlobs
-  , getDirectDeps
-  , getProjectDeps
+  , getTargetDirectDeps
+  , getTargetTransitiveDeps
   , getReverseDeps
   , getTransitiveDeps
   , DepsOnly(..)
@@ -21,7 +20,6 @@ import qualified Data.Map                 as Map
 import qualified Data.Set                 as Set
 import qualified Data.Text                as Text
 
-import qualified Spago.Config             as Config
 import qualified Spago.FetchPackage       as Fetch
 
 
@@ -34,11 +32,11 @@ getGlobsSourcePaths :: Globs -> [SourcePath]
 getGlobsSourcePaths Globs{..} = Map.elems depsGlobs <> fromMaybe [] projectGlobs
 
 getGlobs :: [(PackageName, Package)] -> DepsOnly -> [SourcePath] -> Globs
-getGlobs deps depsOnly configSourcePaths = do
+getGlobs deps depsOnly targetSourcePaths = do
   let
     projectGlobs = case depsOnly of
       DepsOnly   -> Nothing
-      AllSources -> Just configSourcePaths
+      AllSources -> Just targetSourcePaths
 
     depsGlobs = Map.fromList $
       map (\pair@(packageName,_) -> (packageName, SourcePath $ Text.pack $ Fetch.getLocalCacheDir pair <> "/src/**/*.purs")) deps
@@ -47,43 +45,48 @@ getGlobs deps depsOnly configSourcePaths = do
 
 
 getJsGlobs :: [(PackageName, Package)] -> DepsOnly -> [SourcePath] -> [SourcePath]
-getJsGlobs deps depsOnly configSourcePaths
+getJsGlobs deps depsOnly targetSourcePaths
   = map (\pair
           -> SourcePath $ Text.pack $ Fetch.getLocalCacheDir pair
           <> "/src/**/*.js") deps
   <> case depsOnly of
     DepsOnly   -> []
     AllSources -> SourcePath . Text.replace ".purs" ".js" . unSourcePath
-      <$> configSourcePaths
+      <$> targetSourcePaths
 
 
 -- | Return the direct dependencies of the current project
-getDirectDeps
-  :: (HasLogFunc env, HasConfig env)
+getTargetDirectDeps
+  :: (HasLogFunc env, HasPackageSet env, HasTarget env)
   => RIO env [(PackageName, Package)]
-getDirectDeps = do
-  Config { packageSet = PackageSet{..}, dependencies } <- view (the @Config)
-  for (toList dependencies) $ \dep ->
+getTargetDirectDeps = do
+  PackageSet{..} <- view (the @PackageSet)
+  (_targetName, Target { targetDependencies }) <- view (the @BuildTarget)
+  for (Map.keys targetDependencies) $ \dep ->
     case Map.lookup dep packagesDB of
       Nothing ->
         die [ display $ pkgNotFoundMsg packagesDB (NotFoundError dep) ]
       Just pkg ->
         pure (dep, pkg)
 
-getProjectDeps
-  :: (HasLogFunc env, HasConfig env)
+getTargetTransitiveDeps
+  :: (HasLogFunc env, HasPackageSet env, HasTarget env)
   => RIO env [(PackageName, Package)]
-getProjectDeps = do
-  Config{ dependencies } <- view (the @Config)
-  getTransitiveDeps (toList dependencies)
+getTargetTransitiveDeps = do
+  (_targetName, Target { targetDependencies }) <- view (the @BuildTarget)
+  getTransitiveDeps targetDependencies
 
 -- | Return the transitive dependencies of a list of packages
 getTransitiveDeps
   :: (HasLogFunc env, HasPackageSet env)
-  => [PackageName] -> RIO env [(PackageName, Package)]
-getTransitiveDeps deps = do
+  => Map PackageName Range -> RIO env [(PackageName, Package)]
+getTransitiveDeps depsMap = do
   logDebug "Getting transitive deps"
   PackageSet{..} <- view (the @PackageSet)
+
+  -- TODO: this function should have a solver, should be called something like
+  -- "figureOutBuildPlanPlease", and we should not throw away the ranges like this:
+  let deps = Map.keys depsMap
 
   let
     handleErrors packageMap notFoundErrors cycleErrors
@@ -205,14 +208,14 @@ stripPurescriptPrefix (PackageName name) =
 
 
 -- | Get source globs of dependencies listed in `spago.dhall`
-sources :: (HasLogFunc env, HasConfig env) => RIO env ()
+sources :: (HasLogFunc env, HasConfig env, HasTarget env) => RIO env ()
 sources = do
   logDebug "Running `spago sources`"
   config <- view (the @Config)
-  deps <- getProjectDeps
+  (_targetName, Target{ targetDependencies, targetSourcePaths }) <- view (the @BuildTarget)
+  deps <- getTransitiveDeps targetDependencies
   traverse_ output
     $ fmap unSourcePath
     $ getGlobsSourcePaths
     $ getGlobs deps AllSources
-    $ toList
-    $ configSourcePaths config
+    $ toList targetSourcePaths

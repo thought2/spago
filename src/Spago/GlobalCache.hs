@@ -15,6 +15,8 @@ import qualified System.FilePath        as FilePath
 import qualified Turtle
 import           UnliftIO.Directory     (XdgDirectory(XdgCache), getXdgDirectory)
 
+import qualified Spago.Config.TypesV1 as ConfigV1
+
 
 
 newtype CommitHash = CommitHash Text
@@ -45,13 +47,14 @@ type ReposMetadataV1 = Map PackageName RepoMetadataV1
 --   URL of the .tar.gz archive on GitHub, otherwise another callback for when it's not
 globallyCache
   :: HasLogFunc env 
-  => (PackageName, Repo, Text)
+  => (PackageName, ConfigV1.Repo, Text)
   -> FilePath.FilePath
   -> ReposMetadataV1
   -> (FilePath.FilePath -> RIO env ())
   -> RIO env ()
   -> RIO env ()
-globallyCache (packageName, Repo url, ref) downloadDir metadata cacheableCallback notCacheableCallback = do
+globallyCache (packageName, repo, ref) downloadDir metadata cacheableCallback notCacheableCallback = do
+  let url = repoToUrl repo
   logDebug $ "Running `globallyCache`: " <> displayShow packageName <> " " <> display url <> " " <> display ref
   case (Text.stripPrefix "https://github.com/" url)
        >>= (Text.stripSuffix ".git")

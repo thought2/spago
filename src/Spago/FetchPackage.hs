@@ -105,13 +105,13 @@ fetchPackage metadata pair@(packageName'@PackageName{..}, Package{ location = Re
   logDebug $ "Fetching package " <> display packageName
   GlobalCache globalCacheDir cacheFlag <- view (the @GlobalCache)
   let useGlobalCache = cacheFlag /= Just SkipCache
-  let packageDir = getPackageDir packageName' version
+  let packageDir = getPackageDir packageName' ref
   let packageGlobalCacheDir = globalCacheDir </> packageDir
 
   packageLocalCacheDir <- makeAbsolute $ getLocalCacheDir pair
 
   inGlobalCache <- testdir $ Turtle.decodeString packageGlobalCacheDir
-  Temp.withTempDirectory localCacheDir (Text.unpack ("__download-" <> packageName <> "-" <> getCacheVersionDir version)) $ \path -> do
+  Temp.withTempDirectory localCacheDir (Text.unpack ("__download-" <> packageName <> "-" <> getCacheVersionDir ref)) $ \path -> do
     let downloadDir = path </> "download"
 
     -- If a Package is in the global cache, copy it to the local cache.
@@ -121,7 +121,7 @@ fetchPackage metadata pair@(packageName'@PackageName{..}, Package{ location = Re
         cptree packageGlobalCacheDir downloadDir
         assertDirectory (localCacheDir </> Text.unpack packageName)
         mv downloadDir packageLocalCacheDir
-      else Temp.withTempDirectory globalCacheDir (Text.unpack ("__temp-" <> "-" <> packageName <> getCacheVersionDir version)) $ \globalTemp -> do
+      else Temp.withTempDirectory globalCacheDir (Text.unpack ("__temp-" <> "-" <> packageName <> getCacheVersionDir ref)) $ \globalTemp -> do
         -- Otherwise, check if the Package is on GitHub and an "immutable" ref.
         -- If yes, download the tar archive and copy it to global and then local cache.
         let cacheableCallback :: FilePath.FilePath -> RIO env ()
@@ -167,7 +167,7 @@ fetchPackage metadata pair@(packageName'@PackageName{..}, Package{ location = Re
         assertDirectory (localCacheDir </> Text.unpack packageName)
 
         GlobalCache.globallyCache
-          (packageName', repo, version)
+          (packageName', repo, ref)
           downloadDir
           metadata
           cacheableCallback
@@ -177,8 +177,8 @@ fetchPackage metadata pair@(packageName'@PackageName{..}, Package{ location = Re
     quotedName = surroundQuote packageName
 
     git = Text.intercalate " && "
-           [ "git clone " <> unRepo repo <> " ."
-           , "git -c advice.detachedHead=false checkout " <> version
+           [ "git clone " <> repoToUrl repo <> " ."
+           , "git -c advice.detachedHead=false checkout " <> ref
            ]
 
 
@@ -198,7 +198,7 @@ getPackageDir PackageName{..} version = Text.unpack packageName <> "/" <> Text.u
 --   Otherwise return the local folder
 getLocalCacheDir :: (PackageName, Package) -> FilePath.FilePath
 getLocalCacheDir (packageName, Package{ location = Remote{..} }) = do
-  localCacheDir <> "/" <> getPackageDir packageName version
+  localCacheDir <> "/" <> getPackageDir packageName ref
 getLocalCacheDir (_, Package{ location = Local{..} }) =
   Text.unpack localPath
 

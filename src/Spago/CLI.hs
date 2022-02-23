@@ -154,6 +154,7 @@ parser = do
     chkModsUniq  = bool DoCheckModulesUnique NoCheckModulesUnique <$> CLI.switch "no-check-modules-unique" 'M' "Skip checking whether modules names are unique across all packages."
     transitive   = bool NoIncludeTransitive IncludeTransitive <$> CLI.switch "transitive" 't' "Include transitive dependencies"
 
+    targetName = CLI.optional $ CLI.opt (Just . PackageName) "target" 't' "Project target to build"
     mainModule  = CLI.optional $ CLI.opt (Just . ModuleName) "main" 'm' "Module to be used as the application's entry point"
     toTarget    = CLI.optional $ CLI.opt (Just . TargetPath) "to" 't' "The target file path"
     docsFormat  = CLI.optional $ CLI.opt Purs.parseDocsFormat "format" 'f' "Docs output format (markdown | html | etags | ctags)"
@@ -180,7 +181,7 @@ parser = do
 
     -- Note: by default we limit concurrency to 20
     globalOptions = GlobalOptions <$> quiet <*> verbose <*> veryVerbose <*> (not <$> noColor) <*> usePsa
-                    <*> jobsLimit <*> configPath <*> cacheFlag
+                    <*> jobsLimit <*> configPath <*> cacheFlag <*> targetName
 
     initProject =
       ( "init"

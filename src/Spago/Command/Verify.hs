@@ -48,7 +48,7 @@ verify chkModsUniq maybePackage = do
 
     verifyPackage :: PackageName -> RIO env ()
     verifyPackage name = do
-      deps <- Packages.getTransitiveDeps [name]
+      deps <- Packages.getTransitiveDeps (Map.singleton name "*")
       let globs = Packages.getGlobsSourcePaths $ Packages.getGlobs deps Packages.DepsOnly []
           quotedName = surroundQuote $ packageName name
       Fetch.fetchPackages deps

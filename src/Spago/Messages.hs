@@ -5,6 +5,13 @@ import           Spago.Prelude
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text          as Text
 
+cannotFindTarget :: Text -> Text
+cannotFindTarget targetName = makeMessage
+    [ "There's no target named " <> surroundQuote targetName <> " in your spago.dhall file"
+    , ""
+    , "Did you mispell the name? Does it exist?"
+    ]
+
 failedToParseLocalRepo :: Text -> Text
 failedToParseLocalRepo spagoConfigPath = makeMessage
   [ "ERROR: when importing local packages you should point to their `spago.dhall` file."
