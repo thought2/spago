@@ -196,7 +196,7 @@ data Target = Target
 
 type BuildTarget = (PackageName, Target)
 type Targets = Map PackageName Target
-type MaybeTargetName = Maybe PackageName
+type TargetName = PackageName
 
 data TargetType
   = AppTarget { entrypoint :: !Text }

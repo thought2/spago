@@ -147,7 +147,8 @@ getReverseDeps dep = do
           innerDeps <- getReverseDeps packageName
           return $ pair : innerDeps
 
-
+-- FIXME: make install work?
+{-
 -- | Fetch all dependencies into `.spago/`
 install :: (HasEnv env, HasConfig env) => [PackageName] -> RIO env ()
 install newPackages = do
@@ -169,6 +170,7 @@ install newPackages = do
       additional -> Config.addDependencies config additional
 
     Fetch.fetchPackages deps
+-}
 
 reportMissingPackages :: HasLogFunc env => PackagesLookupResult -> RIO env [PackageName]
 reportMissingPackages (PackagesLookupResult found foundWithoutPrefix notFound) = do

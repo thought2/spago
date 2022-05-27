@@ -64,7 +64,7 @@ withEnv GlobalOptions{..} app = do
           , envJobs = Jobs $ fromMaybe 20 globalJobs
           , envConfigPath = ConfigPath configPath
           , envGlobalCache = globalCache
-          , envTargetName = globalTargetName
+          , envTargetName = fromMaybe (PackageName "app") globalTargetName
           }
     runRIO env app
 
@@ -179,7 +179,23 @@ getEnv = do
   envJobs <- view (the @Jobs)
   envConfigPath <- view (the @ConfigPath)
   envGlobalCache <- view (the @GlobalCache)
+  envTargetName <- view (the @TargetName)
   pure Env{..}
+
+getBuildEnv :: HasBuildEnv env => RIO env BuildEnv
+getBuildEnv = do
+  envLogFunc <- view (the @LogFunc)
+  envJobs <- view (the @Jobs)
+  envConfigPath <- view (the @ConfigPath)
+  envGlobalCache <- view (the @GlobalCache)
+  envPursCmd <- view (the @PursCmd)
+  envGitCmd <- view (the @GitCmd)
+  envPackageSet <- view (the @PackageSet)
+  envConfig <- view (the @Config)
+  envGraph <- view (the @Graph)
+  envBuildOptions <- view (the @BuildOptions)
+  envTarget <- view (the @BuildTarget)
+  pure BuildEnv{..}
 
 getConfig :: (HasLogFunc env, HasConfigPath env) => RIO env Config
 getConfig = Config.ensureConfig >>= \case
@@ -228,14 +244,12 @@ getMaybeGraph BuildOptions{ depsOnly, sourcePaths } (_, Target { targetSourcePat
         logWarn $ displayShow err
         pure Nothing
 
-getTarget :: (HasLogFunc env, HasMaybeTargetName env) => Targets -> RIO env BuildTarget
+getTarget :: (HasLogFunc env, HasTargetName env) => Targets -> RIO env BuildTarget
 getTarget targets = do
-  view (the @MaybeTargetName) >>= \case
-    Nothing -> die [ display ("No target provided, exiting!" :: Text) ]
-    Just targetName@(PackageName targetNameText) -> do
-      logDebug $ "Using target '" <> displayShow targetName <> "'"
-      case Map.lookup targetName targets of
-        Nothing -> do
-          die [ display $ Messages.cannotFindTarget targetNameText ]
-        Just target -> do
-          pure (targetName, target)
+  targetName@(PackageName targetNameText) <- view (the @TargetName)
+  logDebug $ "Using target '" <> displayShow targetName <> "'"
+  case Map.lookup targetName targets of
+    Nothing -> do
+      die [ display $ Messages.cannotFindTarget targetNameText ]
+    Just target -> do
+      pure (targetName, target)

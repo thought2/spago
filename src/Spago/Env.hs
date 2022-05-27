@@ -6,6 +6,7 @@ module Spago.Env
   , PackageSetEnv(..)
   , InstallEnv(..)
   , PublishEnv(..)
+  , ReplEnv(..)
   , VerifyEnv(..)
   , BuildEnv(..)
   , PursEnv(..)
@@ -26,6 +27,8 @@ module Spago.Env
   , HasGit
   , HasBower
   , HasPurs
+  , HasTarget
+  , HasTargetName
 
   -- | Other types
   , module Spago.Types
@@ -47,6 +50,7 @@ data GlobalOptions = GlobalOptions
   , globalJobs        :: Maybe Int
   , globalConfigPath  :: Maybe Text
   , globalCacheConfig :: Maybe CacheFlag
+  , globalTargetName  :: Maybe PackageName
   }
 
 type HasLogFunc env = HasType LogFunc env
@@ -57,12 +61,15 @@ type HasPackageSet env = HasType PackageSet env
 type HasPurs env = HasType PursCmd env
 type HasGit env = HasType GitCmd env
 type HasBower env = HasType BowerCmd env
+type HasTarget env = HasType (PackageName, Target) env
+type HasTargetName env = HasType PackageName env
 
 type HasEnv env =
   ( HasLogFunc env
   , HasJobs env
   , HasConfigPath env
   , HasGlobalCache env
+  , HasTargetName env
   )
 
 type HasConfig env = ( HasType Config env, HasPackageSet env )
@@ -85,15 +92,20 @@ type HasPublishEnv env =
   , HasConfig env
   , HasBower env
   , HasGit env
+  , HasTarget env
   )
 
 type HasBuildEnv env =
-  ( HasEnv env
+  ( HasLogFunc env
+  , HasJobs env
+  , HasConfigPath env
+  , HasGlobalCache env
   , HasPurs env
   , HasGit env
   , HasConfig env
   , HasMaybeGraph env
   , HasBuildOptions env
+  , HasTarget env
   )
 
 type HasPursEnv env =
@@ -108,6 +120,7 @@ data Env = Env
   , envJobs :: !Jobs
   , envConfigPath :: !ConfigPath
   , envGlobalCache :: !GlobalCache
+  , envTargetName :: !PackageName
   } deriving (Generic)
 
 data PackageSetEnv = PackageSetEnv
@@ -131,6 +144,16 @@ data InstallEnv = InstallEnv
   , envGlobalCache :: !GlobalCache
   , envPackageSet :: !PackageSet
   , envConfig :: !Config
+  , envTarget :: !(PackageName, Target)
+  } deriving (Generic)
+
+data ReplEnv = ReplEnv
+  { envLogFunc :: !LogFunc
+  , envJobs :: !Jobs
+  , envConfigPath :: !ConfigPath
+  , envGlobalCache :: !GlobalCache
+  , envPackageSet :: !PackageSet
+  , envTarget :: !(PackageName, Target)
   } deriving (Generic)
 
 data PublishEnv = PublishEnv
@@ -140,6 +163,7 @@ data PublishEnv = PublishEnv
   , envPackageSet :: !PackageSet
   , envGitCmd :: !GitCmd
   , envBowerCmd :: !BowerCmd
+  , envTarget :: !(PackageName, Target)
   } deriving (Generic)
 
 data BuildEnv = BuildEnv
@@ -153,6 +177,7 @@ data BuildEnv = BuildEnv
   , envConfig :: !Config
   , envGraph :: !(Maybe ModuleGraph)
   , envBuildOptions :: !BuildOptions
+  , envTarget :: !(PackageName, Target)
   } deriving (Generic)
 
 data PursEnv = PursEnv
@@ -161,4 +186,5 @@ data PursEnv = PursEnv
   , envConfigPath :: !ConfigPath
   , envGlobalCache :: !GlobalCache
   , envPursCmd :: !PursCmd
+  , envTargetName :: !PackageName
   } deriving (Generic)

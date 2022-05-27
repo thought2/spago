@@ -71,16 +71,14 @@ main = withUtf8 $ do
         $ Ls.listPackageSet jsonFlag
 
       -- ### Commands that need an "install environment": global options and a Config
-      Install packageNames -> Run.withInstallEnv
-        $ Spago.Packages.install packageNames
+      Install packageNames -> undefined
       ListDeps jsonFlag transitiveFlag -> Run.withInstallEnv
         $ Ls.listPackages transitiveFlag jsonFlag
       Sources -> Run.withInstallEnv
         $ Spago.Packages.sources
 
       -- ### Commands that need a "publish env": install env + git and bower
-      BumpVersion dryRun spec -> Run.withPublishEnv
-        $ Spago.Version.bumpVersion dryRun spec
+      BumpVersion dryRun spec -> undefined
 
       -- ### Commands that need a "verification env": a Package Set + purs
       Verify package -> Run.withVerifyEnv globalUsePsa

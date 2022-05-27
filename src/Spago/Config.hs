@@ -1,4 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedLists #-}
 module Spago.Config where
 
@@ -6,7 +5,6 @@ import           Spago.Prelude
 import           Spago.Env
 
 import qualified Data.Map              as Map
-import qualified Data.SemVer           as SemVer
 import qualified Data.Set              as Set
 import qualified Data.Text             as Text
 import qualified Data.Versions         as Version
@@ -66,10 +64,9 @@ fromLegacy Legacy.Config{..} = Config{..}
     license = case publishConfig of
       Left _ -> Nothing
       Right Legacy.PublishConfig{ publishLicense } -> Just publishLicense
-    targets = Map.singleton (PackageName name) Target{..}
+    targets = Map.singleton (PackageName "app") Target{..}
       where
-        -- FIXMEE
-        targetVersion = undefined
+        targetVersion = Version.SemVer 0 0 0 [] Nothing
         description = ""
         targetDependencies = Map.fromList $ map (, "*") $ Set.toList dependencies
         targetSourcePaths = configSourcePaths
