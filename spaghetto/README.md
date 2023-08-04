@@ -381,7 +381,7 @@ workspace:
     # optional, boolean, counts compiler warnings as compiler errors
     strict: false
     # optional, Boolean String, persist compiler warnings
-    stash: true
+    persist_warnings: true
 ```
 
 ### FAQs
